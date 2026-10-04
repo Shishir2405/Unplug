@@ -170,6 +170,21 @@ class TestInjectionScanner:
         assert not self._has_invisible_text("coupling " + "\U0001d6fc" * 4 + " here")
         assert not self._has_invisible_text("chapter \U0001d7d0\U0001d7d1\U0001d7d2\U0001d7d3")
 
+    def test_chunked_math_bold_across_whitespace_kinds(self):
+        # Tabs, newlines and no-break spaces are whitespace too; widening the
+        # gap with them must not dodge the grouping.
+        chunks = ["\U0001d5ee\U0001d5ef", "\U0001d5f0\U0001d5f1"]
+        for sep in ["\t", "\n", "\u00a0", "\u3000", " \n  "]:
+            assert self._has_invisible_text(sep.join(chunks)), repr(sep)
+
+    def test_math_bold_span_is_scoped_to_styled_text(self):
+        styled = "\U0001d5ee\U0001d5ef\U0001d5f0\U0001d5f1"
+        raw = f"Hi team. {styled} thanks."
+        findings = self.scanner.scan(_make_text(raw), self.ctx)
+        invisible = [f for f in findings if f.subcategory == "invisible_text"]
+        assert len(invisible) == 1
+        assert (invisible[0].span_start, invisible[0].span_end) == (9, 13)
+
     def test_interleaved_zero_width_emits_single_outer_span(self):
         raw = "h\u200be\u200bl\u200bl\u200bo w\u200bo\u200br\u200bl\u200bd"
         findings = self.scanner.scan(_make_text(raw), self.ctx)
