@@ -145,6 +145,31 @@ class TestInjectionScanner:
         findings = self.scanner.scan(_make_text(chunked), self.ctx)
         assert any(f.subcategory == "invisible_text" for f in findings)
 
+    def _has_invisible_text(self, raw: str) -> bool:
+        findings = self.scanner.scan(_make_text(raw), self.ctx)
+        return any(f.subcategory == "invisible_text" for f in findings)
+
+    def test_math_run_threshold_is_pinned(self):
+        # 3 contiguous styled letters is notation; 4 is a styled word.
+        assert not self._has_invisible_text("the term \U0001d5ee\U0001d5ef\U0001d5f0 here")
+        assert self._has_invisible_text("the term \U0001d5ee\U0001d5ef\U0001d5f0\U0001d5f1 here")
+
+    def test_spaced_single_math_variables_not_invisible_text(self):
+        # Four single styled variables listed with spaces are notation, not a
+        # chunked payload. See PR #151 review.
+        assert not self._has_invisible_text(
+            "let \U0001d44e \U0001d44f \U0001d450 \U0001d451 be positive reals"
+        )
+        assert not self._has_invisible_text(
+            "the hierarchy \U0001d553 \U0001d564 \U0001d55a \U0001d55d"
+        )
+
+    def test_math_greek_and_digits_not_invisible_text(self):
+        # These subranges do not NFKC to ASCII letters, so they cannot carry
+        # an ASCII instruction. See PR #151 review.
+        assert not self._has_invisible_text("coupling " + "\U0001d6fc" * 4 + " here")
+        assert not self._has_invisible_text("chapter \U0001d7d0\U0001d7d1\U0001d7d2\U0001d7d3")
+
     def test_interleaved_zero_width_emits_single_outer_span(self):
         raw = "h\u200be\u200bl\u200bl\u200bo w\u200bo\u200br\u200bl\u200bd"
         findings = self.scanner.scan(_make_text(raw), self.ctx)

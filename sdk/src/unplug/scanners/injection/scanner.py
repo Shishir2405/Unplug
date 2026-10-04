@@ -32,17 +32,16 @@ _ZERO_WIDTH_RE = re.compile("[" + re.escape(_ZERO_WIDTH_CHARS) + "]+")
 # ASCII substitutes. Ordinary CJK punctuation (，。) and ideographs must not
 # be flagged.
 _CONFUSABLE_RE = re.compile(r"[\uff10-\uff19\uff21-\uff3a\uff41-\uff5a\u24b6-\u24cf\u24d0-\u24e9]+")
-# Mathematical alphanumeric symbols (U+1D400-U+1D7FF: bold, italic, script,
-# fraktur, double-struck, sans-serif, monospace letters/digits) normalize
-# straight to ASCII under NFKC, same as the confusables above. Unlike those,
-# ordinary math notation strings several styled variables together ("let
-# f(x) = ax + b", "define xy as the product"), so this block can't be
-# unconditionally suspicious at any short run length. Benign notation tops
-# out at 2 adjacent styled characters; a payload rendered in math-bold runs
-# 9-12. The threshold sits between the two: below it is notation, at or
-# above it is a styled word.
+# Mathematical alphanumeric letters (U+1D400-U+1D6A3: bold, italic, script,
+# fraktur, double-struck, sans-serif, monospace) normalize straight to ASCII
+# under NFKC, same as the confusables above. The Greek and digit subranges
+# after U+1D6A3 do not normalize to ASCII letters, so they cannot spell an
+# instruction and are left out. Ordinary math notation strings a few styled
+# variables together ("let f(x) = ax + b"), so a run only counts as evasion
+# at _MATH_ALPHANUMERIC_MIN_RUN characters: benign notation tops out at 2-3
+# adjacent styled characters, while a payload in math-bold runs 9-12.
 _MATH_ALPHANUMERIC_MIN_RUN = 4
-_MATH_ALPHANUMERIC_RE = re.compile(r"[\U0001d400-\U0001d7ff]+")
+_MATH_ALPHANUMERIC_RE = re.compile(r"[\U0001d400-\U0001d6a3]+")
 _WORD_RE = re.compile(r"\w+")
 
 # Only collapse evasion spans that sit close together (e.g. zero-width chars
@@ -85,10 +84,14 @@ def _group_whitespace_runs(
     the grouped runs' own lengths, not end - start: measuring span width
     would let a wide whitespace gap between two short runs *dilute* the
     count exactly the way this exists to prevent, in the other direction.
+
+    Single-character runs are not grouped: spaced single variables ("let a b
+    c d be reals") are ordinary notation, and a chunked payload's fragments
+    are longer than one character.
     """
+    runs = sorted(run for run in runs if run[1] - run[0] > 1)
     if not runs:
         return []
-    runs = sorted(runs)
     groups: list[list[tuple[int, int]]] = [[runs[0]]]
     for span_start, span_end in runs[1:]:
         _, last_end = groups[-1][-1]
